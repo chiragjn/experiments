@@ -1,4 +1,4 @@
-.py[cod]
+*.py[cod]
 .idea/
 .vscode/
 .DS_Store
