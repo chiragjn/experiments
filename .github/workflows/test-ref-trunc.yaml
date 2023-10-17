@@ -24,7 +24,7 @@ jobs:
       - name: Set version tags
         run: |
           echo "Ref name is ${{ github.ref_name }}"
-          echo "VERSION_TAG=$(echo ${{ github.ref_name }} | awk '{print substr($0, length(${{ env.TAG_PREFIX }}) + 1, length($0) - 1)}')-${GITHUB_SHA::7}" >> $GITHUB_ENV
+          echo "VERSION_TAG=$(echo ${{ github.ref_name }} | awk '{print substr($0, length($TAG_PREFIX) + 1, length($0) - 1)}')-${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: Echo tag
         run: |
