@@ -1,0 +1,31 @@
+name: Build the Jupyter-full and Jupyter-base Dockerfile for Notebook
+
+on:
+  push:
+    tags:
+      - test-prefix-v*
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITHUB_SHA: ${{ github.sha }}
+  TAG_PREFIX: "test-prefix-v"
+
+jobs:
+  build:
+    name: Build Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set version tags
+        run: |
+          echo "Ref name is ${{ github.ref_name }}"
+          echo "VERSION_TAG=$(echo ${{ github.ref_name }} | awk '{print substr($0, length(${{ env.TAG_PREFIX }}) + 1, length($0) - 1)}')-${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Echo tag
+        run: |
+          echo "Version Tag is ${{ env.VERSION_TAG }}"
