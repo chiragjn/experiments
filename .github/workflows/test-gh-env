@@ -1,0 +1,23 @@
+name: Echo Env
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Echo stuff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo
+        run: |
+          echo 'github.ref_name "${{ github.ref_name }}"'
+          echo 'env.GITHUB_REF_NAME "${{ env.GITHUB_REF_NAME }}"'
+          echo 'github.sha "${{ github.sha }}"'
+          echo 'env.GITHUB_SHA "${{ env.GITHUB_SHA }}"'
+
+          echo "github.ref_name \"${{ github.ref_name }}\""
+          echo "env.GITHUB_REF_NAME \"${{ env.GITHUB_REF_NAME }}\""
+          echo "github.sha \"${{ github.sha }}\""
+          echo "env.GITHUB_SHA \"${{ env.GITHUB_SHA }}\""
