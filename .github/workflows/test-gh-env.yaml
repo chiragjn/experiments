@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+env:
+  VAR1: ${{ env.GITHUB_REF_NAME }}
+  VAR2: ${{ env.GITHUB_SHA }}
+
 jobs:
   build:
     name: Echo stuff
@@ -21,3 +25,6 @@ jobs:
           echo "env.GITHUB_REF_NAME \"${{ env.GITHUB_REF_NAME }}\""
           echo "github.sha \"${{ github.sha }}\""
           echo "env.GITHUB_SHA \"${{ env.GITHUB_SHA }}\""
+
+          echo 'VAR1: ${{ env.VAR1 }}'
+          echo 'VAR2: ${{ env.VAR2 }}'
