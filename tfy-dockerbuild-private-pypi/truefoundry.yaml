@@ -1,0 +1,17 @@
+name: private-packages-ex
+type: service
+image:
+  type: build
+  build_source:
+    type: local
+    local_build: false
+  build_spec:
+    type: dockerfile
+    build_args:
+      JFROG_PYPI_EXTRA_INDEX_URL: tfy-secret://truefoundry:jfrog-pypi:JFROG_PYPI_EXTRA_INDEX_URL
+    command: python -m http.server 8080
+ports:
+  - port: 8080
+    expose: false
+    protocol: TCP
+    app_protocol: http
