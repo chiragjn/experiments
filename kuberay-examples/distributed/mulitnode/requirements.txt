@@ -1,0 +1,9 @@
+--extra-index-url https://download.pytorch.org/whl/cu121
+ray[data,train,tune]==2.40.0
+accelerate==1.2.1
+datasets==3.2.0
+huggingface-hub==0.27.0
+transformers==4.47.0
+hf-transfer==0.1.8
+torch==2.5.1+cu121
+torchvision==0.20.0+cu121
