@@ -6,21 +6,50 @@ metadata:
 spec:
   shutdownAfterJobFinishes: true
   ttlSecondsAfterFinished: 300
-  entrypoint: python kuberay-examples/distributed/multinode/train.py
   runtimeEnvYAML: |
+    working_dir: "https://github.com/chiragjn/experiments/archive/main.zip"
     pip:
       - --extra-index-url https://download.pytorch.org/whl/cu121
       - ray[data,train,tune]==2.40.0
       - accelerate==1.2.1
       - datasets==3.2.0
+      - evaluate==0.4.3
       - huggingface-hub==0.27.0
       - transformers==4.47.0
       - hf-transfer==0.1.8
-      - torch==2.5.1+cu121
+      - torch==2.5.0+cu121
       - torchvision==0.20.0+cu121
-    working_dir: "https://github.com/chiragjn/experiments/archive/master.zip"
     env_vars:
       NUM_WORKERS: "2"
+  entrypoint: python kuberay-examples/distributed/mulitnode/train.py
+  submitterPodTemplate:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: karpenter.k8s.aws/instance-family
+                    operator: In
+                    values:
+                      - g5
+                  - key: karpenter.k8s.aws/instance-size
+                    operator: In
+                    values:
+                      - xlarge
+                      - 2xlarge
+                      - 4xlarge
+                      - 8xlarge
+                  - key: karpenter.sh/capacity-type
+                    operator: In
+                    values:
+                      - on-demand
+      tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
+      containers:
+
   # rayClusterSpec specifies the RayCluster instance to be created by the RayJob controller.
   rayClusterSpec:
     rayVersion: '2.9.0'
@@ -28,6 +57,10 @@ spec:
       rayStartParams: {}
       # Pod template
       template:
+        metadata:
+          annotations:
+            cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+            karpenter.sh/do-not-disrupt: 'true'
         spec:
           volumes:
             - name: shared-volume
@@ -37,9 +70,33 @@ spec:
                 medium: Memory
                 sizeLimit: 3000M
               name: dshm
+          affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: karpenter.k8s.aws/instance-family
+                          operator: In
+                          values:
+                            - g5
+                        - key: karpenter.k8s.aws/instance-size
+                          operator: In
+                          values:
+                            - xlarge
+                            - 2xlarge
+                            - 4xlarge
+                            - 8xlarge
+                        - key: karpenter.sh/capacity-type
+                          operator: In
+                          values:
+                            - on-demand
+          tolerations:
+            - effect: NoSchedule
+              key: nvidia.com/gpu
+              operator: Exists
           containers:
             - name: ray-head
-              image: tfy.jfrog.io/tfy-mirror/rayproject/ray:2.9.0
+              image: tfy.jfrog.io/tfy-mirror/rayproject/ray:2.40.0-py39
               volumeMounts:
                 - mountPath: /mnt/shared
                   name: shared-volume
@@ -68,6 +125,10 @@ spec:
         rayStartParams: {}
         # Pod template
         template:
+          metadata:
+            annotations:
+              cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+              karpenter.sh/do-not-disrupt: 'true'
           spec:
             volumes:
               - name: shared-volume
@@ -75,7 +136,7 @@ spec:
                   claimName: distributed-training-shared
               - emptyDir:
                   medium: Memory
-                  sizeLimit: 8000M
+                  sizeLimit: 6000M
                 name: dshm
             affinity:
               nodeAffinity:
@@ -97,9 +158,13 @@ spec:
                           operator: In
                           values:
                             - on-demand
+            tolerations:
+              - effect: NoSchedule
+                key: nvidia.com/gpu
+                operator: Exists
             containers:
               - name: ray-worker
-                image: tfy.jfrog.io/tfy-mirror/rayproject/ray:2.9.0
+                image: tfy.jfrog.io/tfy-mirror/rayproject/ray:2.40.0-py39-cu121
                 volumeMounts:
                   - mountPath: /mnt/shared
                     name: shared-volume
@@ -108,9 +173,9 @@ spec:
                     name: dshm
                 resources:
                   limits:
-                    cpu: "3"
-                    memory: "12Gi"
+                    cpu: "2"
+                    memory: "8Gi"
                     nvidia.com/gpu: 1
                   requests:
-                    cpu: "3"
-                    memory: "12Gi"
+                    cpu: "2"
+                    memory: "8Gi"
