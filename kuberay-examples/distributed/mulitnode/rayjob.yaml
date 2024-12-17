@@ -22,11 +22,11 @@ spec:
     env_vars:
       NUM_WORKERS: "2"
   entrypoint: python kuberay-examples/distributed/mulitnode/train.py
-  submitterPodTemplate:
-    metadata:
-      annotations:
-        cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
-        karpenter.sh/do-not-disrupt: 'true'
+  # submitterPodTemplate:
+  #   metadata:
+  #     annotations:
+  #       cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+  #       karpenter.sh/do-not-disrupt: 'true'
   # rayClusterSpec specifies the RayCluster instance to be created by the RayJob controller.
   rayClusterSpec:
     rayVersion: '2.9.0'
