@@ -23,11 +23,39 @@ spec:
     env_vars:
       NUM_WORKERS: "2"
   entrypoint: python kuberay-examples/distributed/mulitnode/train.py
-  # submitterPodTemplate:
-  #   metadata:
-  #     annotations:
-  #       cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
-  #       karpenter.sh/do-not-disrupt: 'true'
+  submitterPodTemplate:
+    metadata:
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+        karpenter.sh/do-not-disrupt: 'true'
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: karpenter.k8s.aws/instance-family
+                    operator: In
+                    values:
+                      - g5
+                  - key: karpenter.k8s.aws/instance-size
+                    operator: In
+                    values:
+                      - xlarge
+                      - 2xlarge
+                      - 4xlarge
+                      - 8xlarge
+                  - key: karpenter.sh/capacity-type
+                    operator: In
+                    values:
+                      - on-demand
+      tolerations:
+        - effect: NoSchedule
+          key: nvidia.com/gpu
+          operator: Exists
+      containers:
+        - name: ray-job-submitter
+          image: tfy.jfrog.io/tfy-mirror/rayproject/ray:2.40.0-py39
   # rayClusterSpec specifies the RayCluster instance to be created by the RayJob controller.
   rayClusterSpec:
     rayVersion: '2.9.0'
@@ -157,3 +185,10 @@ spec:
                   requests:
                     cpu: "2"
                     memory: "8Gi"
+
+
+
+
+
+
+
