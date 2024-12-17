@@ -29,6 +29,7 @@ spec:
         cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
         karpenter.sh/do-not-disrupt: 'true'
     spec:
+      restartPolicy: OnFailure
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -185,10 +186,3 @@ spec:
                   requests:
                     cpu: "2"
                     memory: "8Gi"
-
-
-
-
-
-
-
