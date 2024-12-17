@@ -19,6 +19,7 @@ spec:
       - hf-transfer==0.1.8
       - torch==2.5.0+cu121
       - torchvision==0.20.0+cu121
+      - scikit-learn==1.6.0
     env_vars:
       NUM_WORKERS: "2"
   entrypoint: python kuberay-examples/distributed/mulitnode/train.py
