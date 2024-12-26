@@ -41,6 +41,7 @@ def train_func(config):
     set_seed(seed)
 
     # Initialize accelerator
+    # DP + TP (MP) + PP
     accelerator = Accelerator()
 
     # Load datasets and metrics

@@ -1,0 +1,295 @@
+name: dist-inf
+type: helm
+source:
+  type: helm-repo
+  chart: tfy-manifests-template
+  version: 0.2.0
+  repo_url: https://truefoundry.github.io/infra-charts/
+values:
+  manifests:
+    - kind: ConfigMap
+      data:
+        start_leader.sh: |-
+          #!/bin/bash
+
+          ray_cluster_size=$1
+
+          # start the ray daemon
+          ray start --head --port=6379
+
+          # wait until all workers are active
+          for (( i=0; i < 300; i+=5 )); do
+              active_nodes=`python3 -c 'import ray; ray.init(); print(sum(node["Alive"] for node in ray.nodes()))'`
+              if [ $active_nodes -eq $ray_cluster_size ]; then
+                echo "All ray workers are active and the ray cluster is initialized successfully."
+                python3 -u \
+                  -m vllm.entrypoints.openai.api_server \
+                  --host 0.0.0.0 \
+                  --port ${PORT} \
+                  --disable-log-requests \
+                  --download-dir /mnt/shared/ \
+                  --tokenizer-mode auto \
+                  --model ${MODEL_ID} \
+                  --tokenizer ${MODEL_ID} \
+                  --trust-remote-code \
+                  --dtype ${DTYPE} \
+                  --tensor-parallel-size ${TENSOR_PARALLEL_SIZE} \
+                  --pipeline-parallel-size ${PIPELINE_PARALLEL_SIZE} \
+                  --gpu-memory-utilization 0.98 \
+                  --served-model-name ${MODEL_NAME} \
+                  --max-model-len ${MAX_MODEL_LENGTH}
+                exit 0
+              fi
+              echo "Wait for all ray workers to be active. $active_nodes/$ray_cluster_size is active"
+              sleep 5s;
+          done
+
+          echo "Waiting for all ray workers to be active timed out."
+          exit 1
+        start_worker.sh: |-
+          #!/bin/bash
+
+          ray_address=$1
+          for (( i=0; i < 300; i+=5 )); do
+            ray start --address=$ray_address:6379 --block
+            if [ $? -eq 0 ]; then
+              echo "Worker: Ray runtime started with head address $ray_address:6379"
+              exit 0
+            fi
+            echo "Waiting until the ray worker is active..."
+            sleep 5s;
+          done
+
+          echo "Ray worker starts timeout, head address: $ray_address:6379"
+          exit 1
+      metadata:
+        name: dist-inf-commands
+      apiVersion: v1
+    - kind: LeaderWorkerSet
+      spec:
+        replicas: 1
+        leaderWorkerTemplate:
+          size: 2
+          restartPolicy: RecreateGroupOnPodRestart
+          leaderTemplate:
+            spec:
+              volumes:
+                - name: shared-volume
+                  persistentVolumeClaim:
+                    claimName: distributed-inference-shared
+                - name: dshm
+                  emptyDir:
+                    medium: Memory
+                    sizeLimit: 12000M
+                - name: dist-inf-commands
+                  configMap:
+                    name: dist-inf-commands
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: karpenter.k8s.aws/instance-family
+                            values:
+                              - g5
+                            operator: In
+                          - key: karpenter.k8s.aws/instance-size
+                            values:
+                              - xlarge
+                              - 2xlarge
+                              - 4xlarge
+                            operator: In
+                          - key: karpenter.sh/capacity-type
+                            values:
+                              - on-demand
+                            operator: In
+              containers:
+                - env:
+                    - name: RAY_USAGE_STATS_ENABLED
+                      value: '0'
+                    - name: PORT
+                      value: '8000'
+                    - name: MODEL_ID
+                      value: Qwen/Qwen2.5-14B-Instruct
+                    - name: DTYPE
+                      value: bfloat16
+                    - name: TENSOR_PARALLEL_SIZE
+                      value: '1'
+                    - name: PIPELINE_PARALLEL_SIZE
+                      value: '2'
+                    - name: MODEL_NAME
+                      value: llm
+                    - name: MAX_MODEL_LENGTH
+                      value: '8192'
+                  name: vllm-leader
+                  image: vllm/vllm-openai:v0.6.5
+                  ports:
+                    - name: http-8000
+                      protocol: TCP
+                      containerPort: 8000
+                  command:
+                    - /bin/bash
+                    - /start.sh
+                    - $(LWS_GROUP_SIZE)
+                  resources:
+                    limits:
+                      cpu: '3'
+                      memory: 15Gi
+                      nvidia.com/gpu: 1
+                    requests:
+                      cpu: '2'
+                      memory: 12Gi
+                  volumeMounts:
+                    - name: shared-volume
+                      subPath: ''
+                      mountPath: /mnt/shared
+                    - name: dshm
+                      mountPath: /dev/shm
+                    - name: dist-inf-commands
+                      subPath: start_leader.sh
+                      mountPath: /start.sh
+                  readinessProbe:
+                    httpGet:
+                      path: /health
+                      port: 8000
+                    periodSeconds: 10
+                    timeoutSeconds: 2
+                    failureThreshold: 10
+                    successThreshold: 1
+                    initialDelaySeconds: 60
+              tolerations:
+                - key: nvidia.com/gpu
+                  effect: NoSchedule
+                  operator: Exists
+            metadata:
+              labels:
+                app: dist-inf
+                role: leader
+          workerTemplate:
+            spec:
+              volumes:
+                - name: shared-volume
+                  persistentVolumeClaim:
+                    claimName: distributed-inference-shared
+                - name: dshm
+                  emptyDir:
+                    medium: Memory
+                    sizeLimit: 12000M
+                - name: dist-inf-commands
+                  configMap:
+                    name: dist-inf-commands
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: karpenter.k8s.aws/instance-family
+                            values:
+                              - g5
+                            operator: In
+                          - key: karpenter.k8s.aws/instance-size
+                            values:
+                              - xlarge
+                              - 2xlarge
+                              - 4xlarge
+                            operator: In
+                          - key: karpenter.sh/capacity-type
+                            values:
+                              - on-demand
+                            operator: In
+              containers:
+                - env:
+                    - name: RAY_USAGE_STATS_ENABLED
+                      value: '0'
+                    - name: PORT
+                      value: '8000'
+                    - name: MODEL_ID
+                      value: Qwen/Qwen2.5-14B-Instruct
+                    - name: DTYPE
+                      value: bfloat16
+                    - name: TENSOR_PARALLEL_SIZE
+                      value: '1'
+                    - name: PIPELINE_PARALLEL_SIZE
+                      value: '2'
+                    - name: MODEL_NAME
+                      value: llm
+                    - name: MAX_MODEL_LENGTH
+                      value: '8192'
+                  name: vllm-worker
+                  image: vllm/vllm-openai:v0.6.5
+                  command:
+                    - /bin/bash
+                    - /start.sh
+                    - $(LWS_LEADER_ADDRESS)
+                  resources:
+                    limits:
+                      cpu: '3'
+                      memory: 15Gi
+                      nvidia.com/gpu: 1
+                    requests:
+                      cpu: '2'
+                      memory: 12Gi
+                  volumeMounts:
+                    - name: shared-volume
+                      subPath: ''
+                      mountPath: /mnt/shared
+                    - name: dshm
+                      mountPath: /dev/shm
+                    - name: dist-inf-commands
+                      subPath: start_worker.sh
+                      mountPath: /start.sh
+              tolerations:
+                - key: nvidia.com/gpu
+                  effect: NoSchedule
+                  operator: Exists
+            metadata:
+              labels:
+                app: dist-inf
+                role: worker
+      metadata:
+        name: dist-inf
+      apiVersion: leaderworkerset.x-k8s.io/v1
+    - kind: Service
+      spec:
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 8080
+            protocol: TCP
+            targetPort: 8080
+        selector:
+          app: dist-inf
+          role: leader
+          leaderworkerset.sigs.k8s.io/name: dist-inf
+      metadata:
+        name: dist-inf-leader
+      apiVersion: v1
+    - kind: VirtualService
+      spec:
+        http:
+          - route:
+              - weight: 100
+                destination:
+                  host: dist-inf-leader
+                  port:
+                    number: 8000
+            corsPolicy:
+              allowHeaders:
+                - '*'
+              allowMethods:
+                - GET
+                - PUT
+                - POST
+                - PATCH
+                - DELETE
+                - OPTIONS
+              allowOrigins:
+                - exact: '*'
+        hosts:
+          - >-
+            dist-inf-qwen-25-14-ins-http-8000.tfy-usea1-ctl.devtest.truefoundry.tech
+        gateways:
+          - istio-system/tfy-wildcard
+      metadata:
+        name: dist-inf-http-8000-vs
+      apiVersion: networking.istio.io/v1beta1

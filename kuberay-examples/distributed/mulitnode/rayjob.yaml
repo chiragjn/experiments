@@ -2,7 +2,6 @@ apiVersion: ray.io/v1
 kind: RayJob
 metadata:
   name: rayjob-hf-accelerate
-  namespace: chirag-gpu-dev
 spec:
   shutdownAfterJobFinishes: true
   ttlSecondsAfterFinished: 300
@@ -56,7 +55,7 @@ spec:
           operator: Exists
       containers:
         - name: ray-job-submitter
-          image: tfy.jfrog.io/tfy-mirror/rayproject/ray:2.40.0-py39
+          image: rayproject/ray:2.40.0-py39
   # rayClusterSpec specifies the RayCluster instance to be created by the RayJob controller.
   rayClusterSpec:
     rayVersion: '2.9.0'
@@ -171,7 +170,7 @@ spec:
                 operator: Exists
             containers:
               - name: ray-worker
-                image: tfy.jfrog.io/tfy-mirror/rayproject/ray:2.40.0-py39-cu121
+                image: rayproject/ray:2.40.0-py39-cu121
                 volumeMounts:
                   - mountPath: /mnt/shared
                     name: shared-volume
