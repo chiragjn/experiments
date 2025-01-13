@@ -1,0 +1,31 @@
+name: pytorch-distributed-training
+type: job
+image:
+  type: build
+  build_spec:
+    type: dockerfile
+    command: torchrun --help
+    dockerfile_path: ./Dockerfile
+    build_context_path: ./
+  build_source:
+    type: local
+    local_build: false
+  docker_registry: truefoundry:dockerhub:chirag-dockerhub:docker-registry:chirag-dockerhub
+retries: 0
+trigger:
+  type: manual
+resources:
+  node:
+    type: node_selector
+    capacity_type: on_demand
+  devices:
+    - name: L40S
+      type: nvidia_gpu
+      count: 1
+  cpu_limit: 4
+  cpu_request: 2
+  memory_limit: 32000
+  memory_request: 27200
+  ephemeral_storage_limit: 100000
+  ephemeral_storage_request: 20000
+trigger_on_deploy: false

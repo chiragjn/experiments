@@ -1,0 +1,193 @@
+apiVersion: "kubeflow.org/v1"
+kind: PyTorchJob
+metadata:
+  name: kfto-torchrun-trl
+spec:
+  nprocPerNode: auto
+  runPolicy:
+    cleanPodPolicy: None
+    schedulingPolicy:
+      minAvailable:
+      minResources:
+    ttlSecondsAfterFinished: 600
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      restartPolicy: OnFailure
+      template:
+        metadata:
+          annotations:
+            cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+            karpenter.sh/do-not-disrupt: 'true'
+        spec:
+          imagePullSecrets:
+            - name: chirag-dockerio-public-ro
+          volumes:
+            - name: shared-volume
+              persistentVolumeClaim:
+                claimName: distributed-training-shared
+            - emptyDir:
+                medium: Memory
+                sizeLimit: 10000M
+              name: dshm
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: karpenter.k8s.aws/instance-family
+                        operator: In
+                        values:
+                          - g5
+                      - key: karpenter.k8s.aws/instance-size
+                        operator: In
+                        values:
+                          - xlarge
+                          - 2xlarge
+                          - 4xlarge
+                          - 8xlarge
+                      - key: karpenter.sh/capacity-type
+                        operator: In
+                        values:
+                          - on-demand
+          tolerations:
+            - effect: NoSchedule
+              key: nvidia.com/gpu
+              operator: Exists
+          schedulerName: volcano
+          containers:
+            - name: pytorch
+              image: docker.io/chiragjn/tfy-chirag-gpu-dev-pytorch-distributed-training-z6akl:2
+              env:
+                - name: HF_HUB_ENABLE_HF_TRANSFER
+                  value: "1"
+              command:
+                - torchrun
+                - train.py
+                - --model_name_or_path
+                - Qwen/Qwen2.5-0.5B
+                - --dataset_name
+                - trl-lib/Capybara
+                - --learning_rate
+                - "2.0e-5"
+                - --num_train_epochs
+                - "1"
+                - --packing
+                - --per_device_train_batch_size
+                - "2"
+                - --gradient_accumulation_steps
+                - "8"
+                - --gradient_checkpointing
+                - --logging_steps
+                - "25"
+                - --eval_strategy
+                - steps
+                - --eval_steps
+                - "100"
+                - --output_dir
+                - "/mnt/shared/Qwen2-0.5B-SFT"
+                - --use_liger
+              volumeMounts:
+                - mountPath: /mnt/shared
+                  name: shared-volume
+                  subPath: ''
+                - mountPath: /dev/shm
+                  name: dshm
+              resources:
+                requests:
+                  cpu: "3"
+                  memory: "14Gi"
+                limits:
+                  cpu: "4"
+                  memory: "16Gi"
+                  nvidia.com/gpu: 1
+    Worker:
+      replicas: 1
+      restartPolicy: OnFailure
+      template:
+        metadata:
+          annotations:
+            cluster-autoscaler.kubernetes.io/safe-to-evict: 'false'
+            karpenter.sh/do-not-disrupt: 'true'
+        spec:
+          imagePullSecrets:
+            - name: chirag-dockerio-public-ro
+          volumes:
+            - name: shared-volume
+              persistentVolumeClaim:
+                claimName: distributed-training-shared
+            - emptyDir:
+                medium: Memory
+                sizeLimit: 10000M
+              name: dshm
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: karpenter.k8s.aws/instance-family
+                        operator: In
+                        values:
+                          - g5
+                      - key: karpenter.k8s.aws/instance-size
+                        operator: In
+                        values:
+                          - xlarge
+                          - 2xlarge
+                          - 4xlarge
+                          - 8xlarge
+                      - key: karpenter.sh/capacity-type
+                        operator: In
+                        values:
+                          - on-demand
+          tolerations:
+            - effect: NoSchedule
+              key: nvidia.com/gpu
+              operator: Exists
+          schedulerName: volcano
+          containers:
+            - name: pytorch
+              image: docker.io/chiragjn/tfy-chirag-gpu-dev-pytorch-distributed-training-z6akl:2
+              env:
+                - name: HF_HUB_ENABLE_HF_TRANSFER
+                  value: "1"
+              command:
+                - torchrun
+                - train.py
+                - --model_name_or_path
+                - Qwen/Qwen2.5-0.5B
+                - --dataset_name
+                - trl-lib/Capybara
+                - --learning_rate
+                - "2.0e-5"
+                - --num_train_epochs
+                - "1"
+                - --packing
+                - --per_device_train_batch_size
+                - "2"
+                - --gradient_accumulation_steps
+                - "8"
+                - --gradient_checkpointing
+                - --logging_steps
+                - "25"
+                - --eval_strategy
+                - steps
+                - --eval_steps
+                - "100"
+                - --output_dir
+                - "/mnt/shared/Qwen2-0.5B-SFT"
+                - --use_liger
+              volumeMounts:
+                - mountPath: /mnt/shared
+                  name: shared-volume
+                  subPath: ''
+                - mountPath: /dev/shm
+                  name: dshm
+              resources:
+                requests:
+                  cpu: "3"
+                  memory: "14Gi"
+                limits:
+                  cpu: "4"
+                  memory: "16Gi"
+                  nvidia.com/gpu: 1
