@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kustomize Playground</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            margin: 0;
+            color: #333;
+        }
+        .header p {
+            color: #666;
+            margin: 10px 0;
+        }
+        .editor-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .editor-panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            height: 600px;
+        }
+        .editor-panel h2 {
+            margin: 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 1.2em;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .editor-header h2 {
+            margin: 0;
+            font-size: 1.2em;
+            color: #333;
+        }
+        .copy-button {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .copy-button:hover {
+            background-color: #5a6268;
+        }
+        .copy-button.copied {
+            background-color: #28a745;
+        }
+        .monaco-editor {
+            flex: 1;
+            height: 500px;
+        }
+        .button-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            margin: 0;
+            z-index: 1000;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .scroll-top-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            opacity: 1;
+            visibility: visible;
+            z-index: 1000;
+        }
+        .scroll-top-button.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .scroll-top-button:hover {
+            background-color: #0056b3;
+        }
+        .output-panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            height: 600px;
+        }
+        .output-panel h2 {
+            margin: 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            font-size: 1.2em;
+            color: #333;
+        }
+        #output {
+            padding: 15px;
+            min-height: 200px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Kustomize Playground</h1>
+            <p>Paste your Kubernetes resource YAML and Kustomize patches below.</p>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 20px; color: #666; font-size: 14px;">
+            Made using Cursor Agent (with a bunch of back and forth sillyness) - as the kids call it Vibe Coding ✨
+        </div>
+
+        <div class="editor-container">
+            <div class="editor-panel">
+                <h2>Resource YAML</h2>
+                <div id="resource-editor" class="monaco-editor"></div>
+            </div>
+            <div class="editor-panel">
+                <div class="editor-header">
+                    <h2>Patches YAML</h2>
+                    <button class="copy-button" onclick="copyPatchesContent()">Copy</button>
+                </div>
+                <div id="patches-editor" class="monaco-editor"></div>
+            </div>
+        </div>
+
+        <div class="button-container">
+            <button hx-post="/api/kustomize"
+                    hx-trigger="click"
+                    hx-include="[name='resource_yaml'], [name='patches_yaml']"
+                    hx-swap="none">
+                Apply Patches
+            </button>
+        </div>
+
+        <div class="output-panel">
+            <div class="editor-header">
+                <h2>Result</h2>
+                <div>
+                    <button class="copy-button" onclick="copyOutputContent()">Copy</button>
+                    <button class="copy-button" onclick="clearOutputContent()">Clear</button>
+                </div>
+            </div>
+            <div id="output-editor" class="monaco-editor"></div>
+        </div>
+
+        <button class="scroll-top-button" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+            Scroll to Top
+        </button>
+    </div>
+
+    <script>
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            // Initialize Monaco editors
+            const resourceEditor = monaco.editor.create(document.getElementById('resource-editor'), {
+                value: `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.14.2`,
+                language: 'yaml',
+                theme: 'vs',
+                automaticLayout: true,
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                formatOnPaste: true,
+                formatOnType: true,
+                tabSize: 2,
+                insertSpaces: true,
+                detectIndentation: false,
+                yaml: {
+                    format: {
+                        enable: true,
+                        indentation: 2,
+                        listItemIndent: 'increase'
+                    }
+                },
+                scrollbar: {
+                    vertical: 'visible',
+                    horizontal: 'visible',
+                    useShadows: false,
+                    verticalScrollbarSize: 10,
+                    horizontalScrollbarSize: 10,
+                    arrowSize: 30
+                },
+                fixedOverflowWidgets: true
+            });
+
+            const patchesEditor = monaco.editor.create(document.getElementById('patches-editor'), {
+                value: `patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: nginx
+      spec:
+        replicas: 3
+        template:
+          spec:
+            containers:
+              - name: nginx
+                image: nginx:latest`,
+                language: 'yaml',
+                theme: 'vs',
+                automaticLayout: true,
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                formatOnPaste: true,
+                formatOnType: true,
+                tabSize: 2,
+                insertSpaces: true,
+                detectIndentation: false,
+                yaml: {
+                    format: {
+                        enable: true,
+                        indentation: 2,
+                        listItemIndent: 'increase'
+                    }
+                },
+                scrollbar: {
+                    vertical: 'visible',
+                    horizontal: 'visible',
+                    useShadows: false,
+                    verticalScrollbarSize: 10,
+                    horizontalScrollbarSize: 10,
+                    arrowSize: 30
+                },
+                fixedOverflowWidgets: true
+            });
+
+            const outputEditor = monaco.editor.create(document.getElementById('output-editor'), {
+                value: '',
+                language: 'yaml',
+                theme: 'vs',
+                automaticLayout: true,
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                readOnly: true,
+                scrollbar: {
+                    vertical: 'visible',
+                    horizontal: 'visible',
+                    useShadows: false,
+                    verticalScrollbarSize: 10,
+                    horizontalScrollbarSize: 10,
+                    arrowSize: 30
+                },
+                fixedOverflowWidgets: true
+            });
+
+            // Add hidden inputs for HTMX
+            const resourceInput = document.createElement('input');
+            resourceInput.type = 'hidden';
+            resourceInput.name = 'resource_yaml';
+            document.body.appendChild(resourceInput);
+
+            const patchesInput = document.createElement('input');
+            patchesInput.type = 'hidden';
+            patchesInput.name = 'patches_yaml';
+            document.body.appendChild(patchesInput);
+
+            // Update hidden inputs when editors change
+            resourceEditor.onDidChangeModelContent(() => {
+                resourceInput.value = resourceEditor.getValue();
+            });
+
+            patchesEditor.onDidChangeModelContent(() => {
+                patchesInput.value = patchesEditor.getValue();
+            });
+
+            // Set initial values
+            resourceInput.value = resourceEditor.getValue();
+            patchesInput.value = patchesEditor.getValue();
+
+            // Handle HTMX response
+            document.body.addEventListener('htmx:afterRequest', function(evt) {
+                if (evt.detail.pathInfo.requestPath === '/api/kustomize') {
+                    const response = JSON.parse(evt.detail.xhr.response);
+                    outputEditor.setValue(response.result);
+                    // Scroll to output panel with a small delay to ensure content is rendered
+                    setTimeout(() => {
+                        const outputPanel = document.querySelector('.output-panel');
+                        const yOffset = outputPanel.getBoundingClientRect().top + window.pageYOffset - 20;
+                        window.scrollTo({
+                            top: yOffset,
+                            behavior: 'smooth'
+                        });
+                    }, 100);
+                }
+            });
+
+            // Handle scroll-to-top button visibility
+            const scrollTopButton = document.querySelector('.scroll-top-button');
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 0) {
+                    scrollTopButton.classList.remove('hidden');
+                } else {
+                    scrollTopButton.classList.add('hidden');
+                }
+            });
+
+            // Handle copy button functionality
+            window.copyPatchesContent = function() {
+                const content = patchesEditor.getValue();
+                navigator.clipboard.writeText(content).then(() => {
+                    const copyButton = document.querySelector('.editor-header .copy-button');
+                    copyButton.textContent = 'Copied!';
+                    copyButton.classList.add('copied');
+                    setTimeout(() => {
+                        copyButton.textContent = 'Copy';
+                        copyButton.classList.remove('copied');
+                    }, 2000);
+                });
+            };
+
+            window.copyOutputContent = function() {
+                const content = outputEditor.getValue();
+                navigator.clipboard.writeText(content).then(() => {
+                    const copyButton = document.querySelector('.output-panel .copy-button');
+                    copyButton.textContent = 'Copied!';
+                    copyButton.classList.add('copied');
+                    setTimeout(() => {
+                        copyButton.textContent = 'Copy';
+                        copyButton.classList.remove('copied');
+                    }, 2000);
+                });
+            };
+
+            window.clearOutputContent = function() {
+                outputEditor.setValue('');
+            };
+        });
+    </script>
+</body>
+</html>
