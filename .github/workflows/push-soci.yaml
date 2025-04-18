@@ -43,10 +43,8 @@ jobs:
           sudo cp bin/* /usr/local/bin/
           
           # Get soci
-          wget https://github.com/awslabs/soci-snapshotter/releases/download/v0.9.0/soci-snapshotter-0.9.0-linux-amd64-static.tar.gz
-          tar -zxvf soci-snapshotter-0.9.0-linux-amd64-static.tar.gz soci
-          sudo mv soci /usr/local/bin/soci
-          rm -rf soci-snapshotter-0.9.0-linux-amd64-static.tar.gz
+          wget https://github.com/awslabs/soci-snapshotter/releases/download/v0.9.0/soci-snapshotter-0.9.0-linux-amd64.tar.gz
+          sudo tar -C /usr/local/bin -xvf soci-snapshotter-0.9.0-linux-amd64.tar.gz soci soci-snapshotter-grpc
 
           echo "Starting containerd"
           sudo containerd > /dev/null 2>&1 &
@@ -55,6 +53,10 @@ jobs:
 
           # Push soci index
           echo "Creating soci index"
+          docker save "${{ env.IMAGE_ARTIFACT_URL }}" -o image.tar
+          docker rmi "${{ env.IMAGE_ARTIFACT_URL }}"
+          sudo ctr images import image.tar
           sudo soci create --platform=linux/amd64 "${{ env.IMAGE_ARTIFACT_URL }}"
+          
           echo "Pushing soci index"
-          sudo soci push --platform=linux/amd64 "${{ env.IMAGE_ARTIFACT_URL }}"
+          sudo soci push --user "${{ secrets.DOCKER_USERNAME }}:${{ secrets.DOCKER_PASSWORD }}" --platform=linux/amd64 "${{ env.IMAGE_ARTIFACT_URL }}"
