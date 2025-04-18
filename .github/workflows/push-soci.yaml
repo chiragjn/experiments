@@ -27,6 +27,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
+          load: true
           push: true
           provenance: false
           file: soci-push/Dockerfile
@@ -38,13 +39,13 @@ jobs:
       - name: Push soci index
         run: |
           # Get ctr and containerd
-          wget https://github.com/containerd/containerd/releases/download/v1.7.27/containerd-1.7.27-linux-amd64.tar.gz
+          wget -q https://github.com/containerd/containerd/releases/download/v1.7.27/containerd-1.7.27-linux-amd64.tar.gz
           tar -zxvf containerd-1.7.27-linux-amd64.tar.gz
           sudo cp bin/* /usr/local/bin/
           
           # Get soci
-          wget https://github.com/awslabs/soci-snapshotter/releases/download/v0.9.0/soci-snapshotter-0.9.0-linux-amd64.tar.gz
-          sudo tar -C /usr/local/bin -xvf soci-snapshotter-0.9.0-linux-amd64.tar.gz soci soci-snapshotter-grpc
+          wget -q https://github.com/awslabs/soci-snapshotter/releases/download/v0.9.0/soci-snapshotter-0.9.0-linux-amd64.tar.gz
+          sudo tar -C /usr/local/bin -zxvf soci-snapshotter-0.9.0-linux-amd64.tar.gz soci soci-snapshotter-grpc
 
           echo "Starting containerd"
           sudo containerd > /dev/null 2>&1 &
