@@ -49,12 +49,12 @@ jobs:
           rm -rf soci-snapshotter-0.9.0-linux-amd64-static.tar.gz
 
           echo "Starting containerd"
-          containerd > /dev/null 2>&1 &
+          sudo containerd > /dev/null 2>&1 &
           sleep 3
-          ctr version > /dev/null
+          sudo ctr version > /dev/null
 
           # Push soci index
           echo "Creating soci index"
-          soci create --platform=linux/amd64 "${{ env.IMAGE_ARTIFACT_URL }}"
+          sudo soci create --platform=linux/amd64 "${{ env.IMAGE_ARTIFACT_URL }}"
           echo "Pushing soci index"
-          soci push --platform=linux/amd64 "${{ env.IMAGE_ARTIFACT_URL }}"
+          sudo soci push --platform=linux/amd64 "${{ env.IMAGE_ARTIFACT_URL }}"
